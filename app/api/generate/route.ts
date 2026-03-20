@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { apiResultSchema, generationFormSchema } from '@/lib/schema';
 import { buildCasePrompt } from '@/lib/prompt';
+import { z } from 'zod';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 const RESPONSE_SCHEMA = {
   name: 'case_study_bundle',
@@ -79,19 +81,32 @@ const RESPONSE_SCHEMA = {
 };
 
 export async function POST(request: Request) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const model = process.env.OPENAI_MODEL || 'gpt-4o';
+
+  if (!apiKey) {
+    console.error('[case-generator] OPENAI_API_KEY is not configured');
+    return NextResponse.json(
+      { error: 'The AI service is not configured. The site owner needs to add an OpenAI API key.' },
+      { status: 503 }
+    );
+  }
+
+  let input;
   try {
     const body = await request.json();
-    const input = generationFormSchema.parse(body);
-    const apiKey = process.env.OPENAI_API_KEY;
-    const model = process.env.OPENAI_MODEL || 'gpt-4o';
+    input = generationFormSchema.parse(body);
+  } catch (err) {
+    const msg = err instanceof z.ZodError
+      ? `Invalid input: ${err.errors.map((e) => e.message).join(', ')}`
+      : 'Invalid request body.';
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
 
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'Missing OPENAI_API_KEY. Add it to your environment variables before generating.' },
-        { status: 500 }
-      );
-    }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 55000);
 
+  try {
     const res = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
@@ -106,7 +121,7 @@ export async function POST(request: Request) {
             content: [
               {
                 type: 'input_text',
-                text: 'You are a expert science education case study designer. Produce only schema-valid JSON. No markdown. No preamble. No explanation outside the JSON.',
+                text: 'You are an expert science education case study designer. Produce only schema-valid JSON. No markdown. No preamble. No explanation outside the JSON.',
               },
             ],
           },
@@ -127,30 +142,57 @@ export async function POST(request: Request) {
           },
         },
       }),
+      signal: controller.signal,
     });
 
     if (!res.ok) {
-      const errorText = await res.text();
-      return NextResponse.json(
-        { error: `OpenAI request failed: ${errorText}` },
-        { status: 500 }
-      );
+      const status = res.status;
+      console.error(`[case-generator] OpenAI returned ${status}`);
+      if (status === 429) {
+        return NextResponse.json({ error: 'The AI service is temporarily overloaded. Wait a moment and try again.' }, { status: 429 });
+      }
+      if (status === 401) {
+        return NextResponse.json({ error: 'The AI service credentials are invalid. Contact the site owner.' }, { status: 503 });
+      }
+      return NextResponse.json({ error: 'The AI service encountered an error. Try again in a moment.' }, { status: 502 });
     }
 
     const data = await res.json();
     const outputText = data.output_text;
 
     if (!outputText) {
-      return NextResponse.json(
-        { error: 'The model returned no text output.' },
-        { status: 500 }
-      );
+      console.error('[case-generator] No output_text in response:', JSON.stringify(data).slice(0, 500));
+      return NextResponse.json({ error: 'The AI returned an empty response. Try again.' }, { status: 502 });
     }
 
-    const parsed = apiResultSchema.parse(JSON.parse(outputText));
+    let jsonData;
+    try {
+      jsonData = JSON.parse(outputText);
+    } catch {
+      console.error('[case-generator] Invalid JSON from model:', outputText.slice(0, 300));
+      return NextResponse.json({ error: 'The AI returned malformed data. Try again.' }, { status: 502 });
+    }
+
+    let parsed;
+    try {
+      parsed = apiResultSchema.parse(jsonData);
+    } catch (err) {
+      const zodMsg = err instanceof z.ZodError
+        ? err.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('; ')
+        : 'unknown';
+      console.error('[case-generator] Schema validation failed:', zodMsg);
+      return NextResponse.json({ error: 'The AI response didn\'t match the expected format. Try again.' }, { status: 502 });
+    }
+
     return NextResponse.json(parsed);
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return NextResponse.json({ error: 'Generation timed out. Try generating fewer cases or simplifying the request.' }, { status: 504 });
+    }
     const message = error instanceof Error ? error.message : 'Unknown server error.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('[case-generator] Unexpected error:', message);
+    return NextResponse.json({ error: 'Something went wrong. Try again.' }, { status: 500 });
+  } finally {
+    clearTimeout(timeout);
   }
 }

@@ -14,21 +14,20 @@ export function formatTeacherPlainText(c: CaseStudy): string {
   lines.push('');
 
   for (const stage of REVEAL_STAGES) {
-    const items = c.progressiveReveal[stage.key];
+    const items = c.progressiveReveal[stage.key] ?? [];
     if (items.length > 0) {
       lines.push(stage.label);
       lines.push('-'.repeat(stage.label.length));
-      for (const item of items) {
-        lines.push(`  • ${item}`);
-      }
+      for (const item of items) lines.push(`  \u2022 ${item}`);
       lines.push('');
     }
   }
 
   lines.push('Differential Diagnoses');
   lines.push('---------------------');
-  for (let i = 0; i < c.differentialDiagnoses.length; i++) {
-    const d = c.differentialDiagnoses[i];
+  const diffs = c.differentialDiagnoses ?? [];
+  for (let i = 0; i < diffs.length; i++) {
+    const d = diffs[i];
     lines.push(`${i + 1}. ${d.diagnosis}`);
     lines.push(`   Why it fits: ${d.whyItFits}`);
     lines.push(`   Why it falls short: ${d.whyItFallsShort}`);
@@ -38,31 +37,32 @@ export function formatTeacherPlainText(c: CaseStudy): string {
   lines.push(`Correct Diagnosis: ${c.correctDiagnosis}`);
   lines.push('');
 
-  lines.push('Diagnostic Clues');
-  for (const clue of c.diagnosticClues) {
-    lines.push(`  • ${clue}`);
+  const diagClues = c.diagnosticClues ?? [];
+  if (diagClues.length > 0) {
+    lines.push('Diagnostic Clues');
+    for (const clue of diagClues) lines.push(`  \u2022 ${clue}`);
+    lines.push('');
   }
-  lines.push('');
 
-  lines.push('What Keeps the Differential Open');
-  for (const clue of c.differentialClues) {
-    lines.push(`  • ${clue}`);
+  const diffClues = c.differentialClues ?? [];
+  if (diffClues.length > 0) {
+    lines.push('What Keeps the Differential Open');
+    for (const clue of diffClues) lines.push(`  \u2022 ${clue}`);
+    lines.push('');
   }
-  lines.push('');
 
-  if (c.suggestedNextTests.length > 0) {
+  const tests = c.suggestedNextTests ?? [];
+  if (tests.length > 0) {
     lines.push('Suggested Next Tests');
-    for (const test of c.suggestedNextTests) {
-      lines.push(`  • ${test}`);
-    }
+    for (const test of tests) lines.push(`  \u2022 ${test}`);
     lines.push('');
   }
 
   lines.push('Teacher Notes');
   lines.push('-------------');
   lines.push(`Content tunnel: ${c.teacherNotes.contentTunnel}`);
-  lines.push(`Core concepts: ${c.teacherNotes.coreConcepts.join(', ')}`);
-  lines.push(`Misconceptions to watch: ${c.teacherNotes.misconceptionsToWatch.join(', ')}`);
+  lines.push(`Core concepts: ${(c.teacherNotes.coreConcepts ?? []).join(', ')}`);
+  lines.push(`Misconceptions to watch: ${(c.teacherNotes.misconceptionsToWatch ?? []).join(', ')}`);
   lines.push(`Why this case works: ${c.teacherNotes.whyThisCaseWorks}`);
 
   return lines.join('\n');
@@ -79,13 +79,11 @@ export function formatStudentPlainText(c: CaseStudy): string {
   lines.push('');
 
   for (const stage of REVEAL_STAGES) {
-    const items = c.progressiveReveal[stage.key];
+    const items = c.progressiveReveal[stage.key] ?? [];
     if (items.length > 0) {
       lines.push(stage.label);
       lines.push('-'.repeat(stage.label.length));
-      for (const item of items) {
-        lines.push(`  • ${item}`);
-      }
+      for (const item of items) lines.push(`  \u2022 ${item}`);
       lines.push('');
     }
   }
@@ -105,19 +103,18 @@ export function formatTeacherMarkdown(c: CaseStudy): string {
   lines.push('');
 
   for (const stage of REVEAL_STAGES) {
-    const items = c.progressiveReveal[stage.key];
+    const items = c.progressiveReveal[stage.key] ?? [];
     if (items.length > 0) {
       lines.push(`## ${stage.label}`);
-      for (const item of items) {
-        lines.push(`- ${item}`);
-      }
+      for (const item of items) lines.push(`- ${item}`);
       lines.push('');
     }
   }
 
   lines.push('## Differential Diagnoses');
-  for (let i = 0; i < c.differentialDiagnoses.length; i++) {
-    const d = c.differentialDiagnoses[i];
+  const diffs = c.differentialDiagnoses ?? [];
+  for (let i = 0; i < diffs.length; i++) {
+    const d = diffs[i];
     lines.push(`${i + 1}. **${d.diagnosis}**`);
     lines.push(`   - *Why it fits:* ${d.whyItFits}`);
     lines.push(`   - *Why it falls short:* ${d.whyItFallsShort}`);
@@ -127,30 +124,31 @@ export function formatTeacherMarkdown(c: CaseStudy): string {
   lines.push(`**Correct Diagnosis:** ${c.correctDiagnosis}`);
   lines.push('');
 
-  lines.push('## Diagnostic Clues');
-  for (const clue of c.diagnosticClues) {
-    lines.push(`- ${clue}`);
+  const diagClues = c.diagnosticClues ?? [];
+  if (diagClues.length > 0) {
+    lines.push('## Diagnostic Clues');
+    for (const clue of diagClues) lines.push(`- ${clue}`);
+    lines.push('');
   }
-  lines.push('');
 
-  lines.push('## What Keeps the Differential Open');
-  for (const clue of c.differentialClues) {
-    lines.push(`- ${clue}`);
+  const diffClues = c.differentialClues ?? [];
+  if (diffClues.length > 0) {
+    lines.push('## What Keeps the Differential Open');
+    for (const clue of diffClues) lines.push(`- ${clue}`);
+    lines.push('');
   }
-  lines.push('');
 
-  if (c.suggestedNextTests.length > 0) {
+  const tests = c.suggestedNextTests ?? [];
+  if (tests.length > 0) {
     lines.push('## Suggested Next Tests');
-    for (const test of c.suggestedNextTests) {
-      lines.push(`- ${test}`);
-    }
+    for (const test of tests) lines.push(`- ${test}`);
     lines.push('');
   }
 
   lines.push('## Teacher Notes');
   lines.push(`- **Content tunnel:** ${c.teacherNotes.contentTunnel}`);
-  lines.push(`- **Core concepts:** ${c.teacherNotes.coreConcepts.join(', ')}`);
-  lines.push(`- **Misconceptions to watch:** ${c.teacherNotes.misconceptionsToWatch.join(', ')}`);
+  lines.push(`- **Core concepts:** ${(c.teacherNotes.coreConcepts ?? []).join(', ')}`);
+  lines.push(`- **Misconceptions to watch:** ${(c.teacherNotes.misconceptionsToWatch ?? []).join(', ')}`);
   lines.push(`- **Why this case works:** ${c.teacherNotes.whyThisCaseWorks}`);
 
   return lines.join('\n');
@@ -166,12 +164,10 @@ export function formatStudentMarkdown(c: CaseStudy): string {
   lines.push('');
 
   for (const stage of REVEAL_STAGES) {
-    const items = c.progressiveReveal[stage.key];
+    const items = c.progressiveReveal[stage.key] ?? [];
     if (items.length > 0) {
       lines.push(`## ${stage.label}`);
-      for (const item of items) {
-        lines.push(`- ${item}`);
-      }
+      for (const item of items) lines.push(`- ${item}`);
       lines.push('');
     }
   }
