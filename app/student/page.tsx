@@ -1,11 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { decodeSharedCase } from '@/lib/serialize';
-import type { RevealStage } from '@/components/types';
+import { REVEAL_STAGES } from '@/lib/disciplines';
 
-export default function StudentPage() {
+function StudentView() {
   const params = useSearchParams();
   const [revealIndex, setRevealIndex] = useState(0);
 
@@ -14,55 +14,81 @@ export default function StudentPage() {
     return encoded ? decodeSharedCase(encoded) : null;
   }, [params]);
 
-  const revealStages: { key: RevealStage; label: string }[] = [
-    { key: 'initialPresentation', label: 'Initial presentation' },
-    { key: 'vitalsAndHistory', label: 'Vitals and history' },
-    { key: 'followUpTesting', label: 'Follow-up testing' },
-    { key: 'finalTeacherReveal', label: 'Teacher reveal' },
-  ];
-
   if (!studentCase) {
     return (
-      <div className="page">
-        <div className="panel resultPanel">
-          <h1 className="sectionTitle">Student case not found</h1>
-          <p className="sectionSub">This link may be incomplete or corrupted.</p>
+      <div className="student-shell">
+        <div className="student-error">
+          <h1>Case not found</h1>
+          <p>This link may be incomplete or expired. Ask your teacher for a new link.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="presentationShell">
-      <div className="presentationTop">
-        <div>
-          <strong>{studentCase.title}</strong>
-          <div className="revealMuted">Student-facing case view</div>
+    <div className="student-shell">
+      <div className="student-header">
+        <div className="student-brand">
+          <div className="student-logo">CS</div>
+          <div>
+            <strong>{studentCase.title}</strong>
+            <div className="student-subtitle">Diagnostic Case Study</div>
+          </div>
         </div>
-        <div className="actions" style={{ marginTop: 0 }}>
-          <button className="btn" onClick={() => setRevealIndex((v) => Math.max(0, v - 1))}>Back</button>
-          <button className="btn btnPrimary" onClick={() => setRevealIndex((v) => Math.min(revealStages.length - 1, v + 1))}>Reveal next</button>
+        <div className="student-controls">
+          <span className="student-progress">{revealIndex + 1} / {REVEAL_STAGES.length}</span>
+          <button className="btn btn-student" onClick={() => setRevealIndex((v) => Math.max(0, v - 1))} disabled={revealIndex === 0}>
+            Back
+          </button>
+          <button className="btn btn-student btn-student-primary" onClick={() => setRevealIndex((v) => Math.min(REVEAL_STAGES.length - 1, v + 1))} disabled={revealIndex === REVEAL_STAGES.length - 1}>
+            Reveal Next
+          </button>
         </div>
       </div>
 
-      <div className="presentationBody">
-        <div className="revealGrid">
-          <div className="revealCard">
-            <h2>{studentCase.title}</h2>
-            <p className="revealMuted">{studentCase.summary}</p>
-            <p><strong>Your task:</strong> {studentCase.studentPrompt}</p>
-          </div>
+      <div className="student-body">
+        <div className="student-intro">
+          <h1>{studentCase.title}</h1>
+          <p>{studentCase.summary}</p>
+          <p className="student-task"><strong>Your task:</strong> {studentCase.studentPrompt}</p>
+        </div>
 
-          {revealStages.slice(0, revealIndex + 1).map((stage) => (
-            <div className="revealCard" key={stage.key}>
-              <h3>{stage.label}</h3>
-              <ul>
-                {studentCase.progressiveReveal[stage.key].map((item, i) => <li key={i}>{item}</li>)}
-              </ul>
-            </div>
+        <div className="student-stages">
+          {REVEAL_STAGES.slice(0, revealIndex + 1).map((stage) => {
+            const items = studentCase.progressiveReveal[stage.key as keyof typeof studentCase.progressiveReveal];
+            if (!items || items.length === 0) return null;
+            return (
+              <div className="student-stage" key={stage.key}>
+                <h2>{stage.label}</h2>
+                <ul>
+                  {items.map((item, i) => <li key={i}>{item}</li>)}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="student-dots">
+          {REVEAL_STAGES.map((stage, i) => (
+            <div key={stage.key} className={`student-dot ${i <= revealIndex ? 'student-dot-active' : ''}`} title={stage.label} />
           ))}
         </div>
       </div>
     </div>
+  );
+}
+
+export default function StudentPage() {
+  return (
+    <Suspense fallback={
+      <div className="student-shell">
+        <div className="student-body" style={{ textAlign: 'center', paddingTop: '20vh' }}>
+          <div className="spinner-lg" />
+          <p style={{ color: 'rgba(255,255,255,0.6)', marginTop: 16 }}>Loading case...</p>
+        </div>
+      </div>
+    }>
+      <StudentView />
+    </Suspense>
   );
 }

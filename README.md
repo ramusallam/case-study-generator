@@ -1,74 +1,90 @@
-# Case Study Generator v2
+# Case Study Generator v3
 
-A Vercel-ready Next.js app that generates high-school science diagnostic case studies from backward-designed content targets.
+AI-powered diagnostic case study generator for high school science teachers. Create medically plausible fictional patient cases that tunnel students toward biology, chemistry, neuroscience, and medical biochemistry content through clinical reasoning.
 
-## What it does
+## What It Does
 
-- Generates 1 to 4 medically plausible fictional cases from your science topic and content tunnel
-- Keeps the teacher in control with an editable final narrative
-- Supports a classroom presentation mode with gradual reveal
-- Creates a unique student-facing URL and QR code without requiring a full database
-- Uses a server-side OpenAI API key so secrets are not exposed in the browser
+Teachers start with the scientific topic they want students to learn. The app generates fictional patient cases designed to lead students toward that content through diagnosis. Students analyze symptoms, propose differential diagnoses, and justify their reasoning from evidence — building authentic inquiry before the teacher reveals the underlying science.
 
-## Recommended model setup
+### Teacher Studio
+- **Discipline presets**: Biology, Chemistry, Medical Biochemistry, Neuroscience, Custom
+- **Case tone selection**: Classic ER, Clinic Visit, Sports Physical, Urgent Care, School Nurse, Mystery
+- **Fine-tuned controls**: Difficulty, tunnel strength, ambiguity, reveal mode, case features
+- **Generate 1-4 cases** at once with full teacher notes
+- **Quick refinement actions**: "More like this", "Tighten tunnel", "More ambiguous", "Different diagnosis"
+- **Structured inline editing**: Edit every field of the generated case directly
+- **Export**: Copy teacher version, student version, Markdown, or print
 
-Use OpenAI through the server route with one of these models:
+### Presentation Mode
+- Dark, distraction-free view optimized for classroom projection
+- 6-stage progressive reveal: Chief Complaint → History → Vitals → Exam Findings → Labs & Imaging → Final Prompt
+- Fullscreen support via browser Fullscreen API
+- Stage dot navigation
 
-- `gpt-5-mini` for fast iteration
-- `gpt-5` for stronger outputs
-- `gpt-5.4` if that is enabled in your account and available to your API project
+### Student Sharing
+- **No database required**: Case data is compressed (LZ-string) and encoded directly into a shareable URL
+- **QR code generation**: Built-in QR code for easy classroom distribution
+- **Student-safe**: Only the case narrative and reveal stages are shared — no teacher notes or answer key
 
-Update the environment variable as needed:
-
-```bash
-OPENAI_MODEL=gpt-5-mini
-```
-
-## Local setup
+## Running Locally
 
 ```bash
 npm install
 cp .env.example .env.local
+# Add your OpenAI API key to .env.local
 npm run dev
 ```
 
-Then open:
+Open [http://localhost:3000](http://localhost:3000).
 
-```bash
-http://localhost:3000
-```
+## Environment Variables
 
-## Environment variables
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `OPENAI_API_KEY` | Yes | — | Your OpenAI API key (server-side only) |
+| `OPENAI_MODEL` | No | `gpt-4o` | OpenAI model to use for generation |
 
-```bash
-OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_MODEL=gpt-5-mini
-```
+## Deploying to Vercel
 
-## Deploy to Vercel
+1. Push this repo to GitHub
+2. Import the repo in [Vercel](https://vercel.com/new)
+3. Add `OPENAI_API_KEY` as an environment variable in Vercel project settings
+4. Deploy
 
-1. Push the repo to GitHub.
-2. Import it into Vercel.
-3. Add `OPENAI_API_KEY` and `OPENAI_MODEL` in the Vercel project settings.
-4. Deploy.
+The app uses the OpenAI Responses API with JSON Schema structured output for reliable, typed responses.
 
-## Current architecture
+## Student Sharing: How It Works
 
-- `app/page.tsx` ... teacher studio
-- `app/student/page.tsx` ... student share page
-- `app/api/generate/route.ts` ... server-side OpenAI generation route
-- `lib/prompt.ts` ... backward-design prompt construction
-- `lib/schema.ts` ... Zod schemas for form input and model output
-- `lib/serialize.ts` ... URL-safe student share encoding
+The student share link encodes the student-safe portion of the case (title, summary, student prompt, and progressive reveal data) into the URL using LZ-string compression. This means:
 
-## Important note about sharing
+- **No backend storage needed** for sharing
+- **Links are self-contained** and work even if the server goes down
+- **Teacher notes are never exposed** — only student-facing content is serialized
 
-This version uses URL-encoded student-safe case payloads for share links and QR codes. That keeps the stack light and avoids a database. It is great for typical classroom cases. If you later want analytics, student response collection, persistence, or larger assets, add lightweight storage such as Firebase, Vercel Blob, or KV.
+### Known Limits
+- Very long cases may produce URLs that exceed browser/server limits (~2000 characters for some contexts). Most cases fit comfortably.
+- If a URL is too long, shorten the case text in the editor before sharing.
+- There is no analytics or tracking on shared links.
 
-## Suggested next upgrades
+## Architecture
 
-- Save favorite cases locally or in Firebase
-- Add template presets by discipline
-- Add export to Google Docs / Markdown / PDF
-- Add classroom timer and reveal controls
-- Add a simple library of previous generated cases
+- `app/page.tsx` — Teacher studio (main interface)
+- `app/student/page.tsx` — Student share page (read-only, progressive reveal)
+- `app/api/generate/route.ts` — Server-side OpenAI generation route
+- `components/TeacherStudio.tsx` — Main app component
+- `lib/schema.ts` — Zod schemas for form input and model output
+- `lib/prompt.ts` — Backward-design prompt construction with discipline awareness
+- `lib/disciplines.ts` — Discipline presets, case tones, reveal stage config
+- `lib/export.ts` — Export formatting (plain text, Markdown, teacher/student versions)
+- `lib/serialize.ts` — URL-safe student share encoding/decoding
+
+## Tech Stack
+
+- **Framework**: Next.js 15 (App Router)
+- **Language**: TypeScript (strict mode)
+- **AI**: OpenAI API (server-side, structured output with JSON Schema)
+- **Styling**: Vanilla CSS with custom properties
+- **Compression**: LZ-string for URL-based sharing
+- **QR Codes**: qrcode.react
+- **Validation**: Zod schemas
+- **Deployment**: Vercel

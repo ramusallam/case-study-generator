@@ -17,8 +17,8 @@ export function toSharedPayload(caseStudy: CaseStudy): SharedStudentCase {
   };
 }
 
-export function encodeSharedCase(caseStudy: SharedStudentCase) {
-  return compressToEncodedURIComponent(JSON.stringify(caseStudy));
+export function encodeSharedCase(payload: SharedStudentCase): string {
+  return compressToEncodedURIComponent(JSON.stringify(payload));
 }
 
 export function decodeSharedCase(encoded: string): SharedStudentCase | null {

@@ -1,14 +1,17 @@
 import { z } from 'zod';
 
 export const generationFormSchema = z.object({
+  discipline: z.string().min(1),
   course: z.string().min(1),
   gradeBand: z.string().min(1),
   topicTargets: z.string().min(1),
   scientificTunnel: z.string().min(1),
+  preferredDiagnosis: z.string().optional(),
   difficulty: z.number().min(1).max(5),
   tunnelStrength: z.number().min(1).max(5),
   ambiguity: z.number().min(1).max(5),
   revealMode: z.enum(['symptoms_only', 'symptoms_plus_testing', 'progressive']),
+  caseTone: z.string().optional(),
   includeVitals: z.boolean(),
   includeLabs: z.boolean(),
   includeImaging: z.boolean(),
@@ -17,18 +20,26 @@ export const generationFormSchema = z.object({
   constraints: z.string().optional(),
   studentTask: z.string().optional(),
   count: z.number().min(1).max(4),
+  refinement: z.object({
+    action: z.string(),
+    sourceCase: z.any().optional(),
+    excludeDiagnosis: z.string().optional(),
+  }).optional(),
 });
 
 export const caseStudySchema = z.object({
   id: z.string(),
   title: z.string(),
   summary: z.string(),
+  teacherRationale: z.string(),
   studentPrompt: z.string(),
   progressiveReveal: z.object({
-    initialPresentation: z.array(z.string()),
-    vitalsAndHistory: z.array(z.string()),
-    followUpTesting: z.array(z.string()),
-    finalTeacherReveal: z.array(z.string()),
+    chiefComplaint: z.array(z.string()),
+    history: z.array(z.string()),
+    vitals: z.array(z.string()),
+    examFindings: z.array(z.string()),
+    labsAndImaging: z.array(z.string()),
+    synthesis: z.array(z.string()),
   }),
   differentialDiagnoses: z.array(
     z.object({
@@ -38,6 +49,9 @@ export const caseStudySchema = z.object({
     })
   ),
   correctDiagnosis: z.string(),
+  diagnosticClues: z.array(z.string()),
+  differentialClues: z.array(z.string()),
+  suggestedNextTests: z.array(z.string()),
   teacherNotes: z.object({
     contentTunnel: z.string(),
     coreConcepts: z.array(z.string()),

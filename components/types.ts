@@ -1,1 +1,1 @@
-export type RevealStage = 'initialPresentation' | 'vitalsAndHistory' | 'followUpTesting' | 'finalTeacherReveal';
+export type { RevealStageKey } from '@/lib/disciplines';

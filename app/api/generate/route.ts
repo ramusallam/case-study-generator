@@ -20,17 +20,20 @@ const RESPONSE_SCHEMA = {
             id: { type: 'string' },
             title: { type: 'string' },
             summary: { type: 'string' },
+            teacherRationale: { type: 'string' },
             studentPrompt: { type: 'string' },
             progressiveReveal: {
               type: 'object',
               additionalProperties: false,
               properties: {
-                initialPresentation: { type: 'array', items: { type: 'string' } },
-                vitalsAndHistory: { type: 'array', items: { type: 'string' } },
-                followUpTesting: { type: 'array', items: { type: 'string' } },
-                finalTeacherReveal: { type: 'array', items: { type: 'string' } }
+                chiefComplaint: { type: 'array', items: { type: 'string' } },
+                history: { type: 'array', items: { type: 'string' } },
+                vitals: { type: 'array', items: { type: 'string' } },
+                examFindings: { type: 'array', items: { type: 'string' } },
+                labsAndImaging: { type: 'array', items: { type: 'string' } },
+                synthesis: { type: 'array', items: { type: 'string' } },
               },
-              required: ['initialPresentation', 'vitalsAndHistory', 'followUpTesting', 'finalTeacherReveal']
+              required: ['chiefComplaint', 'history', 'vitals', 'examFindings', 'labsAndImaging', 'synthesis'],
             },
             differentialDiagnoses: {
               type: 'array',
@@ -40,12 +43,15 @@ const RESPONSE_SCHEMA = {
                 properties: {
                   diagnosis: { type: 'string' },
                   whyItFits: { type: 'string' },
-                  whyItFallsShort: { type: 'string' }
+                  whyItFallsShort: { type: 'string' },
                 },
-                required: ['diagnosis', 'whyItFits', 'whyItFallsShort']
-              }
+                required: ['diagnosis', 'whyItFits', 'whyItFallsShort'],
+              },
             },
             correctDiagnosis: { type: 'string' },
+            diagnosticClues: { type: 'array', items: { type: 'string' } },
+            differentialClues: { type: 'array', items: { type: 'string' } },
+            suggestedNextTests: { type: 'array', items: { type: 'string' } },
             teacherNotes: {
               type: 'object',
               additionalProperties: false,
@@ -53,18 +59,23 @@ const RESPONSE_SCHEMA = {
                 contentTunnel: { type: 'string' },
                 coreConcepts: { type: 'array', items: { type: 'string' } },
                 misconceptionsToWatch: { type: 'array', items: { type: 'string' } },
-                whyThisCaseWorks: { type: 'string' }
+                whyThisCaseWorks: { type: 'string' },
               },
-              required: ['contentTunnel', 'coreConcepts', 'misconceptionsToWatch', 'whyThisCaseWorks']
+              required: ['contentTunnel', 'coreConcepts', 'misconceptionsToWatch', 'whyThisCaseWorks'],
             },
-            editableNarrative: { type: 'string' }
+            editableNarrative: { type: 'string' },
           },
-          required: ['id', 'title', 'summary', 'studentPrompt', 'progressiveReveal', 'differentialDiagnoses', 'correctDiagnosis', 'teacherNotes', 'editableNarrative']
-        }
-      }
+          required: [
+            'id', 'title', 'summary', 'teacherRationale', 'studentPrompt',
+            'progressiveReveal', 'differentialDiagnoses', 'correctDiagnosis',
+            'diagnosticClues', 'differentialClues', 'suggestedNextTests',
+            'teacherNotes', 'editableNarrative',
+          ],
+        },
+      },
     },
-    required: ['cases']
-  }
+    required: ['cases'],
+  },
 };
 
 export async function POST(request: Request) {
@@ -72,7 +83,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const input = generationFormSchema.parse(body);
     const apiKey = process.env.OPENAI_API_KEY;
-    const model = process.env.OPENAI_MODEL || 'gpt-5-mini';
+    const model = process.env.OPENAI_MODEL || 'gpt-4o';
 
     if (!apiKey) {
       return NextResponse.json(
@@ -95,26 +106,26 @@ export async function POST(request: Request) {
             content: [
               {
                 type: 'input_text',
-                text: 'Produce only schema-valid JSON. No markdown. No preamble.'
-              }
-            ]
+                text: 'You are a expert science education case study designer. Produce only schema-valid JSON. No markdown. No preamble. No explanation outside the JSON.',
+              },
+            ],
           },
           {
             role: 'user',
             content: [
               {
                 type: 'input_text',
-                text: buildCasePrompt(input)
-              }
-            ]
-          }
+                text: buildCasePrompt(input),
+              },
+            ],
+          },
         ],
         text: {
           format: {
             type: 'json_schema',
             ...RESPONSE_SCHEMA,
-          }
-        }
+          },
+        },
       }),
     });
 
