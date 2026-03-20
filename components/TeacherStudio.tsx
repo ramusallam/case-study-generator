@@ -5,7 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { encodeSharedCase, toSharedPayload } from '@/lib/serialize';
 import { formatTeacherPlainText, formatStudentPlainText, formatTeacherMarkdown, formatStudentMarkdown } from '@/lib/export';
 import { DISCIPLINES, CASE_TONES, REVEAL_STAGES } from '@/lib/disciplines';
-import type { Discipline, CaseTone, RevealStageKey } from '@/lib/disciplines';
+import type { Discipline, CaseTone } from '@/lib/disciplines';
 import type { ApiResult, CaseStudy, GenerationForm } from '@/lib/schema';
 
 type ViewMode = 'teacher' | 'editor' | 'present' | 'share';
@@ -35,36 +35,35 @@ const DEFAULT_FORM: GenerationForm = {
   count: 3,
 };
 
-function CopyButton({ text, label }: { text: string; label: string }) {
+function CopyBtn({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     await navigator.clipboard.writeText(text);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => setCopied(false), 1800);
   };
   return (
     <button className={`btn btnSoft ${copied ? 'btnGood' : ''}`} onClick={copy}>
-      {copied ? 'Copied!' : label}
+      {copied ? 'Copied' : label}
     </button>
   );
 }
 
-function SliderControl({ label, value, onChange, min = 1, max = 5 }: {
-  label: string; value: number; onChange: (v: number) => void; min?: number; max?: number;
+function Slider({ label, value, onChange }: {
+  label: string; value: number; onChange: (v: number) => void;
 }) {
-  const labels: Record<string, string[]> = {
+  const descs: Record<string, string[]> = {
     Difficulty: ['Very accessible', 'Accessible', 'Moderate', 'Challenging', 'Very challenging'],
     'Tunnel strength': ['Loose', 'Light', 'Balanced', 'Strong', 'Very strong'],
     Ambiguity: ['Low', 'Some', 'Balanced', 'High', 'Very high'],
   };
-  const desc = labels[label]?.[value - 1] || '';
   return (
     <div className="slider-control">
       <div className="slider-header">
         <span className="slider-label">{label}</span>
-        <span className="slider-value">{desc || `${value}/${max}`}</span>
+        <span className="slider-value">{descs[label]?.[value - 1] ?? `${value}/5`}</span>
       </div>
-      <input type="range" min={min} max={max} value={value} onChange={(e) => onChange(Number(e.target.value))} />
+      <input type="range" min={1} max={5} value={value} onChange={(e) => onChange(Number(e.target.value))} />
     </div>
   );
 }
@@ -78,7 +77,7 @@ export default function TeacherStudio() {
   const [mode, setMode] = useState<ViewMode>('teacher');
   const [revealIndex, setRevealIndex] = useState(0);
   const [editCase, setEditCase] = useState<CaseStudy | null>(null);
-  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const presentRef = useRef<HTMLDivElement>(null);
 
   const activeCase = data?.cases?.[activeIndex] ?? null;
@@ -89,6 +88,26 @@ export default function TeacherStudio() {
       setRevealIndex(0);
     }
   }, [activeCase]);
+
+  // Keyboard navigation for presentation mode
+  useEffect(() => {
+    if (mode !== 'present') return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        e.preventDefault();
+        setRevealIndex((v) => Math.min(REVEAL_STAGES.length - 1, v + 1));
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setRevealIndex((v) => Math.max(0, v - 1));
+      } else if (e.key === 'f' || e.key === 'F') {
+        toggleFullscreen();
+      } else if (e.key === 'Escape' && document.fullscreenElement) {
+        document.exitFullscreen();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mode]);
 
   const shareUrl = useMemo(() => {
     if (!activeCase || typeof window === 'undefined') return '';
@@ -164,17 +183,12 @@ export default function TeacherStudio() {
     newCases[activeIndex] = editCase;
     setData({ cases: newCases });
     setMode('teacher');
-    showCopyFeedback('Edits saved');
+    showToast('Edits saved');
   }
 
-  function showCopyFeedback(msg: string) {
-    setCopyFeedback(msg);
-    setTimeout(() => setCopyFeedback(null), 2000);
-  }
-
-  async function copyText(text: string, label: string) {
-    await navigator.clipboard.writeText(text);
-    showCopyFeedback(`${label} copied`);
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 1800);
   }
 
   function toggleFullscreen() {
@@ -186,11 +200,10 @@ export default function TeacherStudio() {
     }
   }
 
-  // --- RENDER ---
+  const canGenerate = form.topicTargets.trim().length > 0 && form.scientificTunnel.trim().length > 0;
 
   return (
     <div className="app">
-      {/* Header */}
       <header className="app-header">
         <div className="app-header-inner">
           <div className="app-brand">
@@ -204,7 +217,7 @@ export default function TeacherStudio() {
             <div className="mode-tabs">
               {(['teacher', 'editor', 'present', 'share'] as ViewMode[]).map((m) => (
                 <button key={m} className={`mode-tab ${mode === m ? 'mode-tab-active' : ''}`} onClick={() => setMode(m)}>
-                  {m === 'teacher' ? 'Review' : m === 'editor' ? 'Edit' : m === 'present' ? 'Present' : 'Share'}
+                  {{ teacher: 'View', editor: 'Edit', present: 'Present', share: 'Share' }[m]}
                 </button>
               ))}
             </div>
@@ -212,21 +225,16 @@ export default function TeacherStudio() {
         </div>
       </header>
 
-      {/* Copy feedback toast */}
-      {copyFeedback && <div className="toast">{copyFeedback}</div>}
+      {toast && <div className="toast">{toast}</div>}
 
       <div className="app-body">
-        {/* LEFT: Form */}
+        {/* FORM SIDEBAR */}
         <aside className="form-sidebar">
           <div className="form-section">
             <h2 className="form-heading">Discipline</h2>
             <div className="discipline-grid">
               {DISCIPLINE_KEYS.map((d) => (
-                <button
-                  key={d}
-                  className={`discipline-chip ${form.discipline === d ? 'discipline-chip-active' : ''}`}
-                  onClick={() => selectDiscipline(d)}
-                >
+                <button key={d} className={`discipline-chip ${form.discipline === d ? 'discipline-chip-active' : ''}`} onClick={() => selectDiscipline(d)}>
                   {DISCIPLINES[d].label}
                 </button>
               ))}
@@ -234,7 +242,7 @@ export default function TeacherStudio() {
           </div>
 
           <div className="form-section">
-            <h2 className="form-heading">Setup</h2>
+            <h2 className="form-heading">Content Target</h2>
             <div className="field-stack">
               {form.discipline === 'custom' && (
                 <div>
@@ -248,21 +256,21 @@ export default function TeacherStudio() {
               </div>
               <div>
                 <label className="field-label">What should students uncover?</label>
-                <textarea className="field-textarea" value={form.scientificTunnel} onChange={(e) => updateForm('scientificTunnel', e.target.value)} placeholder="The scientific concepts you want the case to tunnel toward..." />
+                <textarea className="field-textarea" value={form.scientificTunnel} onChange={(e) => updateForm('scientificTunnel', e.target.value)} placeholder="The scientific concepts the case should tunnel toward..." />
               </div>
               <div>
-                <label className="field-label">Preferred diagnosis <span className="field-optional">(optional)</span></label>
+                <label className="field-label">Preferred diagnosis <span className="field-optional">optional</span></label>
                 <input className="field-input" value={form.preferredDiagnosis || ''} onChange={(e) => updateForm('preferredDiagnosis', e.target.value)} placeholder="e.g., Multiple sclerosis" />
               </div>
               <div>
-                <label className="field-label">Student task <span className="field-optional">(optional)</span></label>
-                <textarea className="field-textarea field-textarea-sm" value={form.studentTask || ''} onChange={(e) => updateForm('studentTask', e.target.value)} placeholder="Default: Determine the most likely diagnosis and provide 2-3 differentials with evidence." />
+                <label className="field-label">Student task <span className="field-optional">optional</span></label>
+                <textarea className="field-textarea field-textarea-sm" value={form.studentTask || ''} onChange={(e) => updateForm('studentTask', e.target.value)} placeholder="Default: Determine the most likely diagnosis with 2-3 differentials." />
               </div>
             </div>
           </div>
 
           <div className="form-section">
-            <h2 className="form-heading">Case Settings</h2>
+            <h2 className="form-heading">Case Design</h2>
             <div className="field-stack">
               <div className="field-row">
                 <div>
@@ -275,25 +283,21 @@ export default function TeacherStudio() {
                   </select>
                 </div>
                 <div>
-                  <label className="field-label">Cases</label>
+                  <label className="field-label">Cases to generate</label>
                   <select className="field-select" value={form.count} onChange={(e) => updateForm('count', Number(e.target.value) as GenerationForm['count'])}>
-                    <option value={1}>1</option>
-                    <option value={2}>2</option>
-                    <option value={3}>3</option>
-                    <option value={4}>4</option>
+                    <option value={1}>1 case</option>
+                    <option value={2}>2 cases</option>
+                    <option value={3}>3 cases</option>
+                    <option value={4}>4 cases</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="field-label">Case tone</label>
+                <label className="field-label">Setting</label>
                 <div className="tone-grid">
                   {TONE_KEYS.map((t) => (
-                    <button
-                      key={t}
-                      className={`tone-chip ${form.caseTone === t ? 'tone-chip-active' : ''}`}
-                      onClick={() => updateForm('caseTone', t)}
-                    >
+                    <button key={t} className={`tone-chip ${form.caseTone === t ? 'tone-chip-active' : ''}`} onClick={() => updateForm('caseTone', t)}>
                       {CASE_TONES[t].label}
                     </button>
                   ))}
@@ -308,11 +312,7 @@ export default function TeacherStudio() {
                     { value: 'symptoms_plus_testing', label: 'Symptoms + testing' },
                     { value: 'progressive', label: 'Progressive reveal' },
                   ].map((rm) => (
-                    <button
-                      key={rm.value}
-                      className={`tone-chip ${form.revealMode === rm.value ? 'tone-chip-active' : ''}`}
-                      onClick={() => updateForm('revealMode', rm.value as GenerationForm['revealMode'])}
-                    >
+                    <button key={rm.value} className={`tone-chip ${form.revealMode === rm.value ? 'tone-chip-active' : ''}`} onClick={() => updateForm('revealMode', rm.value as GenerationForm['revealMode'])}>
                       {rm.label}
                     </button>
                   ))}
@@ -320,14 +320,9 @@ export default function TeacherStudio() {
               </div>
 
               <div>
-                <label className="field-label">Include in case</label>
+                <label className="field-label">Include</label>
                 <div className="check-row">
-                  {([
-                    ['includeHistory', 'History'],
-                    ['includeVitals', 'Vitals'],
-                    ['includeLabs', 'Labs'],
-                    ['includeImaging', 'Imaging'],
-                  ] as const).map(([key, label]) => (
+                  {([['includeHistory', 'History'], ['includeVitals', 'Vitals'], ['includeLabs', 'Labs'], ['includeImaging', 'Imaging']] as const).map(([key, label]) => (
                     <label className="check-item" key={key}>
                       <input type="checkbox" checked={Boolean(form[key])} onChange={(e) => updateForm(key, e.target.checked as never)} />
                       <span>{label}</span>
@@ -336,79 +331,82 @@ export default function TeacherStudio() {
                 </div>
               </div>
 
-              <SliderControl label="Difficulty" value={form.difficulty} onChange={(v) => updateForm('difficulty', v)} />
-              <SliderControl label="Tunnel strength" value={form.tunnelStrength} onChange={(v) => updateForm('tunnelStrength', v)} />
-              <SliderControl label="Ambiguity" value={form.ambiguity} onChange={(v) => updateForm('ambiguity', v)} />
+              <Slider label="Difficulty" value={form.difficulty} onChange={(v) => updateForm('difficulty', v)} />
+              <Slider label="Tunnel strength" value={form.tunnelStrength} onChange={(v) => updateForm('tunnelStrength', v)} />
+              <Slider label="Ambiguity" value={form.ambiguity} onChange={(v) => updateForm('ambiguity', v)} />
 
               <div>
-                <label className="field-label">Focus notes <span className="field-optional">(optional)</span></label>
+                <label className="field-label">Teaching focus <span className="field-optional">optional</span></label>
                 <input className="field-input" value={form.focusNotes || ''} onChange={(e) => updateForm('focusNotes', e.target.value)} placeholder="Authenticity, misconceptions, phenotype..." />
               </div>
               <div>
-                <label className="field-label">Constraints <span className="field-optional">(optional)</span></label>
+                <label className="field-label">Guardrails <span className="field-optional">optional</span></label>
                 <input className="field-input" value={form.constraints || ''} onChange={(e) => updateForm('constraints', e.target.value)} placeholder="No rare jargon, keep diagnosis non-obvious..." />
               </div>
             </div>
           </div>
 
           <div className="form-actions">
-            <button className="btn btn-primary btn-lg" onClick={() => handleGenerate()} disabled={loading || !form.topicTargets || !form.scientificTunnel}>
-              {loading ? (
-                <span className="loading-text"><span className="spinner" /> Generating...</span>
-              ) : (
-                'Generate Cases'
-              )}
+            <button className="btn btn-primary btn-lg" onClick={() => handleGenerate()} disabled={loading || !canGenerate}>
+              {loading ? <span className="loading-text"><span className="spinner" /> Generating...</span> : 'Generate Cases'}
             </button>
             <button className="btn btn-ghost" onClick={() => setForm(DEFAULT_FORM)}>Reset form</button>
           </div>
         </aside>
 
-        {/* RIGHT: Results */}
+        {/* RESULTS */}
         <main className="results-area">
           {error && <div className="error-banner">{error}</div>}
 
+          {/* Loading overlay when regenerating with existing data */}
+          {loading && data && (
+            <div className="results-loading-overlay">
+              <div className="spinner-lg" />
+              <p>Generating...</p>
+            </div>
+          )}
+
           {!data && !loading && (
             <div className="empty-state">
-              <div className="empty-icon">&#9881;</div>
-              <h2>Set up your case parameters</h2>
-              <p>Choose a discipline, enter your topic and scientific content tunnel, then generate cases. The AI will create medically plausible fictional cases designed to lead students toward your target content through diagnostic reasoning.</p>
+              <div className="empty-icon">&#128300;</div>
+              <h2>Ready to build a case</h2>
+              <p>Choose a discipline, enter your topic and the scientific concepts you want students to uncover, then generate. The AI creates medically plausible cases designed to lead students toward your content through diagnostic reasoning.</p>
             </div>
           )}
 
           {loading && !data && (
             <div className="empty-state">
               <div className="spinner-lg" />
-              <h2>Generating cases...</h2>
-              <p>Building {form.count} diagnostic case{form.count > 1 ? 's' : ''} for {form.course}. This typically takes 15-30 seconds.</p>
+              <h2>Building your cases</h2>
+              <p>Creating {form.count} diagnostic case{form.count > 1 ? 's' : ''} for {form.course}. This usually takes 15-30 seconds.</p>
             </div>
           )}
 
           {data && (
             <>
-              {/* Case selector tabs */}
               <div className="case-tabs">
                 {data.cases.map((c, i) => (
                   <button key={c.id} className={`case-tab ${activeIndex === i ? 'case-tab-active' : ''}`} onClick={() => setActiveIndex(i)}>
                     <span className="case-tab-num">{i + 1}</span>
-                    <span className="case-tab-title">{c.title.length > 30 ? c.title.slice(0, 30) + '...' : c.title}</span>
+                    <span className="case-tab-title">{c.title}</span>
                   </button>
                 ))}
               </div>
 
-              {/* Quick actions */}
+              {/* QUICK ACTIONS */}
               {mode === 'teacher' && activeCase && (
                 <div className="quick-actions">
-                  <span className="quick-label">Refine:</span>
+                  <span className="quick-label">Refine</span>
                   <button className="btn btn-sm" onClick={() => handleRefine('generate-more')} disabled={loading}>More like this</button>
                   <button className="btn btn-sm" onClick={() => handleRefine('tighten-tunnel')} disabled={loading}>Tighten tunnel</button>
                   <button className="btn btn-sm" onClick={() => handleRefine('more-ambiguous')} disabled={loading}>More ambiguous</button>
                   <button className="btn btn-sm" onClick={() => handleRefine('more-realistic')} disabled={loading}>More realistic</button>
-                  <button className="btn btn-sm" onClick={() => handleRefine('more-student-friendly')} disabled={loading}>More student-friendly</button>
+                  <button className="btn btn-sm" onClick={() => handleRefine('more-student-friendly')} disabled={loading}>Simpler</button>
                   <button className="btn btn-sm" onClick={() => handleRefine('different-diagnosis')} disabled={loading}>Different diagnosis</button>
                 </div>
               )}
 
-              {/* TEACHER VIEW */}
+              {/* VIEW MODE */}
               {activeCase && mode === 'teacher' && (
                 <div className="case-view">
                   <div className="case-header-card">
@@ -439,8 +437,8 @@ export default function TeacherStudio() {
                       {activeCase.differentialDiagnoses.map((d, i) => (
                         <div className="diff-item" key={i}>
                           <div className="diff-name">{d.diagnosis}</div>
-                          <div className="diff-detail"><span className="diff-tag diff-fit">Fits:</span> {d.whyItFits}</div>
-                          <div className="diff-detail"><span className="diff-tag diff-short">Falls short:</span> {d.whyItFallsShort}</div>
+                          <div className="diff-detail"><span className="diff-tag diff-fit">Fits</span> {d.whyItFits}</div>
+                          <div className="diff-detail"><span className="diff-tag diff-short">Falls short</span> {d.whyItFallsShort}</div>
                         </div>
                       ))}
                     </div>
@@ -459,7 +457,7 @@ export default function TeacherStudio() {
 
                   <div className="teacher-grid">
                     <div className="teacher-card">
-                      <h3 className="section-title">Diagnostic Clues</h3>
+                      <h3 className="section-title">Clues Toward Diagnosis</h3>
                       <ul className="tag-list">{activeCase.diagnosticClues.map((c, i) => <li key={i}>{c}</li>)}</ul>
                     </div>
                     <div className="teacher-card">
@@ -494,19 +492,19 @@ export default function TeacherStudio() {
                   </div>
 
                   <div className="export-bar">
-                    <CopyButton text={formatTeacherPlainText(activeCase)} label="Copy teacher version" />
-                    <CopyButton text={formatStudentPlainText(activeCase)} label="Copy student version" />
-                    <CopyButton text={formatTeacherMarkdown(activeCase)} label="Copy as Markdown" />
+                    <CopyBtn text={formatTeacherPlainText(activeCase)} label="Teacher copy" />
+                    <CopyBtn text={formatStudentPlainText(activeCase)} label="Student copy" />
+                    <CopyBtn text={formatTeacherMarkdown(activeCase)} label="Markdown" />
                     <button className="btn btnSoft" onClick={() => window.print()}>Print</button>
                   </div>
                 </div>
               )}
 
-              {/* EDITOR VIEW */}
+              {/* EDIT MODE */}
               {activeCase && editCase && mode === 'editor' && (
                 <div className="case-view">
                   <div className="editor-notice">
-                    Edit any field below. Changes are saved to the current session when you click Save.
+                    Edit any field below. Your changes stay in this session until you save.
                   </div>
 
                   <div className="edit-section">
@@ -524,20 +522,17 @@ export default function TeacherStudio() {
                     <textarea className="field-textarea field-textarea-sm" value={editCase.studentPrompt} onChange={(e) => updateEditField('studentPrompt', e.target.value)} />
                   </div>
 
-                  {REVEAL_STAGES.map((stage) => {
-                    const items = editCase.progressiveReveal[stage.key];
-                    return (
-                      <div className="edit-section" key={stage.key}>
-                        <label className="edit-label">{stage.label}</label>
-                        <textarea
-                          className="field-textarea"
-                          value={items.join('\n')}
-                          onChange={(e) => updateEditField(`progressiveReveal.${stage.key}`, e.target.value.split('\n').filter((l) => l.trim()))}
-                        />
-                        <span className="edit-hint">One item per line</span>
-                      </div>
-                    );
-                  })}
+                  {REVEAL_STAGES.map((stage) => (
+                    <div className="edit-section" key={stage.key}>
+                      <label className="edit-label">{stage.label}</label>
+                      <textarea
+                        className="field-textarea"
+                        value={editCase.progressiveReveal[stage.key].join('\n')}
+                        onChange={(e) => updateEditField(`progressiveReveal.${stage.key}`, e.target.value.split('\n').filter((l) => l.trim()))}
+                      />
+                      <span className="edit-hint">One item per line</span>
+                    </div>
+                  ))}
 
                   <div className="edit-section">
                     <label className="edit-label">Correct Diagnosis</label>
@@ -548,23 +543,22 @@ export default function TeacherStudio() {
                     <div className="edit-section edit-diff" key={i}>
                       <label className="edit-label">Differential {i + 1}</label>
                       <input className="field-input" value={d.diagnosis} placeholder="Diagnosis" onChange={(e) => {
-                        const newDiffs = [...editCase.differentialDiagnoses];
-                        newDiffs[i] = { ...newDiffs[i], diagnosis: e.target.value };
-                        setEditCase((prev) => prev ? { ...prev, differentialDiagnoses: newDiffs } : prev);
+                        const arr = [...editCase.differentialDiagnoses];
+                        arr[i] = { ...arr[i], diagnosis: e.target.value };
+                        setEditCase((p) => p ? { ...p, differentialDiagnoses: arr } : p);
                       }} />
                       <input className="field-input" value={d.whyItFits} placeholder="Why it fits" onChange={(e) => {
-                        const newDiffs = [...editCase.differentialDiagnoses];
-                        newDiffs[i] = { ...newDiffs[i], whyItFits: e.target.value };
-                        setEditCase((prev) => prev ? { ...prev, differentialDiagnoses: newDiffs } : prev);
+                        const arr = [...editCase.differentialDiagnoses];
+                        arr[i] = { ...arr[i], whyItFits: e.target.value };
+                        setEditCase((p) => p ? { ...p, differentialDiagnoses: arr } : p);
                       }} />
                       <input className="field-input" value={d.whyItFallsShort} placeholder="Why it falls short" onChange={(e) => {
-                        const newDiffs = [...editCase.differentialDiagnoses];
-                        newDiffs[i] = { ...newDiffs[i], whyItFallsShort: e.target.value };
-                        setEditCase((prev) => prev ? { ...prev, differentialDiagnoses: newDiffs } : prev);
+                        const arr = [...editCase.differentialDiagnoses];
+                        arr[i] = { ...arr[i], whyItFallsShort: e.target.value };
+                        setEditCase((p) => p ? { ...p, differentialDiagnoses: arr } : p);
                       }} />
                       <button className="btn btn-sm btn-danger" onClick={() => {
-                        const newDiffs = editCase.differentialDiagnoses.filter((_, idx) => idx !== i);
-                        setEditCase((prev) => prev ? { ...prev, differentialDiagnoses: newDiffs } : prev);
+                        setEditCase((p) => p ? { ...p, differentialDiagnoses: p.differentialDiagnoses.filter((_, idx) => idx !== i) } : p);
                       }}>Remove</button>
                     </div>
                   ))}
@@ -577,11 +571,11 @@ export default function TeacherStudio() {
                         <textarea className="field-textarea field-textarea-sm" value={editCase.teacherNotes.contentTunnel} onChange={(e) => updateEditField('teacherNotes.contentTunnel', e.target.value)} />
                       </div>
                       <div>
-                        <span className="edit-hint">Core concepts (one per line)</span>
+                        <span className="edit-hint">Core concepts — one per line</span>
                         <textarea className="field-textarea field-textarea-sm" value={editCase.teacherNotes.coreConcepts.join('\n')} onChange={(e) => updateEditField('teacherNotes.coreConcepts', e.target.value.split('\n').filter((l) => l.trim()))} />
                       </div>
                       <div>
-                        <span className="edit-hint">Misconceptions to watch (one per line)</span>
+                        <span className="edit-hint">Misconceptions to watch — one per line</span>
                         <textarea className="field-textarea field-textarea-sm" value={editCase.teacherNotes.misconceptionsToWatch.join('\n')} onChange={(e) => updateEditField('teacherNotes.misconceptionsToWatch', e.target.value.split('\n').filter((l) => l.trim()))} />
                       </div>
                       <div>
@@ -593,7 +587,7 @@ export default function TeacherStudio() {
 
                   <div className="editor-actions">
                     <button className="btn btn-primary" onClick={saveEdits}>Save edits</button>
-                    <button className="btn btn-ghost" onClick={() => setEditCase(structuredClone(activeCase))}>Discard changes</button>
+                    <button className="btn btn-ghost" onClick={() => setEditCase(structuredClone(activeCase))}>Discard</button>
                   </div>
                 </div>
               )}
@@ -604,18 +598,11 @@ export default function TeacherStudio() {
                   <div className="presentation-header">
                     <div className="presentation-title">{activeCase.title}</div>
                     <div className="presentation-controls">
-                      <span className="presentation-progress">
-                        {revealIndex + 1} / {REVEAL_STAGES.length}
-                      </span>
-                      <button className="btn btn-present" onClick={() => setRevealIndex((v) => Math.max(0, v - 1))} disabled={revealIndex === 0}>
-                        Back
-                      </button>
-                      <button className="btn btn-present btn-present-primary" onClick={() => setRevealIndex((v) => Math.min(REVEAL_STAGES.length - 1, v + 1))} disabled={revealIndex === REVEAL_STAGES.length - 1}>
-                        Reveal Next
-                      </button>
-                      <button className="btn btn-present" onClick={toggleFullscreen}>
-                        Fullscreen
-                      </button>
+                      <span className="presentation-progress">{revealIndex + 1} / {REVEAL_STAGES.length}</span>
+                      <button className="btn btn-present" onClick={() => setRevealIndex((v) => Math.max(0, v - 1))} disabled={revealIndex === 0}>Back</button>
+                      <button className="btn btn-present btn-present-primary" onClick={() => setRevealIndex((v) => Math.min(REVEAL_STAGES.length - 1, v + 1))} disabled={revealIndex === REVEAL_STAGES.length - 1}>Reveal Next</button>
+                      <button className="btn btn-present" onClick={toggleFullscreen}>Fullscreen</button>
+                      <span className="presentation-kbd">← → Space F</span>
                     </div>
                   </div>
 
@@ -633,9 +620,7 @@ export default function TeacherStudio() {
                         return (
                           <div className="presentation-stage" key={stage.key}>
                             <h3>{stage.label}</h3>
-                            <ul>
-                              {items.map((item, i) => <li key={i}>{item}</li>)}
-                            </ul>
+                            <ul>{items.map((item, i) => <li key={i}>{item}</li>)}</ul>
                           </div>
                         );
                       })}
@@ -643,51 +628,46 @@ export default function TeacherStudio() {
 
                     <div className="presentation-stage-dots">
                       {REVEAL_STAGES.map((stage, i) => (
-                        <button
-                          key={stage.key}
-                          className={`stage-dot ${i <= revealIndex ? 'stage-dot-active' : ''}`}
-                          onClick={() => setRevealIndex(i)}
-                          title={stage.label}
-                        />
+                        <button key={stage.key} className={`stage-dot ${i <= revealIndex ? 'stage-dot-active' : ''}`} onClick={() => setRevealIndex(i)} title={stage.label} />
                       ))}
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* SHARE VIEW */}
+              {/* SHARE MODE */}
               {activeCase && mode === 'share' && (
                 <div className="case-view">
                   <div className="share-layout">
                     <div className="share-qr-card">
-                      {shareUrl && <QRCodeSVG value={shareUrl} size={200} bgColor="transparent" fgColor="#111827" />}
+                      {shareUrl && <QRCodeSVG value={shareUrl} size={200} bgColor="transparent" fgColor="#0f172a" />}
                       <p className="share-qr-label">Student QR Code</p>
                     </div>
 
                     <div className="share-details">
                       <div className="share-info">
-                        <h3>Student Share Link</h3>
-                        <p>Students see only the case narrative and progressive reveal. No teacher notes, answer key, or diagnosis are exposed.</p>
+                        <h3>Student Link</h3>
+                        <p>Students see the case and progressive reveal only. No teacher notes, diagnoses, or answer key are exposed.</p>
                         <textarea className="field-textarea field-textarea-sm share-url" value={shareUrl} readOnly onClick={(e) => (e.target as HTMLTextAreaElement).select()} />
                         <div className="share-actions">
-                          <CopyButton text={shareUrl} label="Copy link" />
-                          <a className="btn btnSoft" href={shareUrl} target="_blank" rel="noopener noreferrer">Open student view</a>
+                          <CopyBtn text={shareUrl} label="Copy link" />
+                          <a className="btn btnSoft" href={shareUrl} target="_blank" rel="noopener noreferrer">Preview student view</a>
                         </div>
                       </div>
 
                       <div className="share-info">
-                        <h3>How Sharing Works</h3>
-                        <p>The case data is compressed and encoded directly into the URL using LZ-string compression. No database is needed. The link is self-contained and works offline once loaded.</p>
-                        <p className="share-note">For very large cases, the URL may exceed browser limits (~2000 chars). If this happens, consider shortening the case text in the editor first.</p>
+                        <h3>How This Works</h3>
+                        <p>The case is compressed and encoded into the URL itself — no database needed. The link is self-contained.</p>
+                        <p className="share-note">Very large cases may exceed URL length limits. If that happens, trim the case in the editor first.</p>
                       </div>
                     </div>
                   </div>
 
                   <div className="export-bar">
-                    <CopyButton text={formatTeacherPlainText(activeCase)} label="Copy teacher version" />
-                    <CopyButton text={formatStudentPlainText(activeCase)} label="Copy student version" />
-                    <CopyButton text={formatTeacherMarkdown(activeCase)} label="Copy as Markdown" />
-                    <CopyButton text={formatStudentMarkdown(activeCase)} label="Copy student Markdown" />
+                    <CopyBtn text={formatTeacherPlainText(activeCase)} label="Teacher copy" />
+                    <CopyBtn text={formatStudentPlainText(activeCase)} label="Student copy" />
+                    <CopyBtn text={formatTeacherMarkdown(activeCase)} label="Markdown" />
+                    <CopyBtn text={formatStudentMarkdown(activeCase)} label="Student Markdown" />
                     <button className="btn btnSoft" onClick={() => window.print()}>Print</button>
                   </div>
                 </div>
