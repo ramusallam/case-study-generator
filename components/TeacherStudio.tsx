@@ -718,7 +718,7 @@ export default function TeacherStudio() {
                     )}
                     <div className="share-layout">
                       <div className="share-qr-card">
-                        {shareUrl && !shareUrlTooLong && <QRCodeSVG value={shareUrl} size={200} bgColor="transparent" fgColor="#0f172a" />}
+                        {shareUrl && !shareUrlTooLong && <QRCodeSVG value={shareUrl} size={200} bgColor="transparent" fgColor="#f5f5f5" />}
                         {shareUrlTooLong && <div style={{ width: 200, height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-muted)', fontSize: '0.85rem', textAlign: 'center' }}>Case too large for QR code</div>}
                         <p className="share-qr-label">Student QR Code</p>
                       </div>
