@@ -46,6 +46,9 @@ CASE DESIGN PARAMETERS:
 - Additional constraints: ${input.constraints || 'none'}
 - Student task framing: ${input.studentTask || 'Determine the most likely diagnosis and provide 2 to 3 differential diagnoses with evidence from the case.'}
 
+CRITICAL STUDENT-PROMPT RULE:
+The studentPrompt field is shown directly to students. It must NEVER name, hint at, or list specific diagnoses, conditions, diseases, or syndromes. Do not say things like "Consider conditions like X, Y, or Z." The whole point is for students to figure out the diagnosis themselves. The studentPrompt should only frame the clinical scenario and ask students to determine the most likely diagnosis and provide 2-3 differential diagnoses supported by evidence from the case. Keep it open-ended.
+
 QUALITY REQUIREMENTS:
 1. All cases must be fictional but medically or scientifically plausible enough for authentic classroom inquiry.
 2. Cases must create genuine uncertainty, curiosity, and productive tension in students.

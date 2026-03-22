@@ -86,3 +86,25 @@ export async function updateCaseTags(id: string, tags: string[]): Promise<void> 
 export async function deleteSavedCase(id: string): Promise<void> {
   await deleteDoc(doc(db, CASES_COLLECTION, id));
 }
+
+// --- Shared cases (for student sharing via short URLs) ---
+
+const SHARED_COLLECTION = 'sharedCases';
+
+export async function saveSharedCase(payload: Record<string, unknown>): Promise<string> {
+  const id = crypto.randomUUID().slice(0, 8);
+  await setDoc(doc(db, SHARED_COLLECTION, id), {
+    ...payload,
+    _sharedAt: Timestamp.now(),
+  });
+  return id;
+}
+
+export async function getSharedCase(id: string): Promise<Record<string, unknown> | null> {
+  const snap = await getDoc(doc(db, SHARED_COLLECTION, id));
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { _sharedAt, ...rest } = data;
+  return rest;
+}

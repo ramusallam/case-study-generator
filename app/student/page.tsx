@@ -1,20 +1,70 @@
 'use client';
 
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { decodeSharedCase } from '@/lib/serialize';
+import { decodeSharedCase, type SharedStudentCase } from '@/lib/serialize';
+import { getSharedCase } from '@/lib/firebase';
 import { REVEAL_STAGES } from '@/lib/disciplines';
 
 function StudentView() {
   const params = useSearchParams();
   const [revealIndex, setRevealIndex] = useState(0);
+  const [studentCase, setStudentCase] = useState<SharedStudentCase | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  const studentCase = useMemo(() => {
-    const encoded = params.get('case');
-    return encoded ? decodeSharedCase(encoded) : null;
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      // Try Firebase ID first
+      const id = params.get('id');
+      if (id) {
+        try {
+          const data = await getSharedCase(id);
+          if (!cancelled && data) {
+            setStudentCase(data as unknown as SharedStudentCase);
+            setLoading(false);
+            return;
+          }
+        } catch {
+          // Fall through to error
+        }
+      }
+
+      // Fallback: try LZ-string encoded case param
+      const encoded = params.get('case');
+      if (encoded) {
+        const decoded = decodeSharedCase(encoded);
+        if (!cancelled && decoded) {
+          setStudentCase(decoded);
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (!cancelled) {
+        setError(true);
+        setLoading(false);
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
   }, [params]);
 
-  if (!studentCase) {
+  if (loading) {
+    return (
+      <div className="student-shell">
+        <div className="student-body" style={{ textAlign: 'center', paddingTop: '20vh' }}>
+          <div className="spinner-lg" />
+          <p style={{ color: 'rgba(255,255,255,0.6)', marginTop: 16 }}>Loading case...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !studentCase) {
     return (
       <div className="student-shell">
         <div className="student-error">

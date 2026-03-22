@@ -4,5 +4,8 @@ service cloud.firestore {
     match /savedCases/{caseId} {
       allow read, write: if true;
     }
+    match /sharedCases/{caseId} {
+      allow read, write: if true;
+    }
   }
 }

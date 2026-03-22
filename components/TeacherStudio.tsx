@@ -6,6 +6,7 @@ import { encodeSharedCase, toSharedPayload } from '@/lib/serialize';
 import { formatTeacherPlainText, formatStudentPlainText, formatTeacherMarkdown, formatStudentMarkdown } from '@/lib/export';
 import { DISCIPLINES, CASE_TONES, REVEAL_STAGES } from '@/lib/disciplines';
 import { saveCase, getAllCases, toggleFavorite, deleteCase } from '@/lib/storage';
+import { saveSharedCase } from '@/lib/firebase';
 import type { Discipline, CaseTone } from '@/lib/disciplines';
 import type { ApiResult, CaseStudy, GenerationForm, SavedCase, Differential } from '@/lib/schema';
 
@@ -138,13 +139,44 @@ export default function TeacherStudio() {
     return () => window.removeEventListener('keydown', onKey);
   }, [mode]);
 
-  const shareUrl = useMemo(() => {
-    if (!activeCase || typeof window === 'undefined') return '';
-    const encoded = encodeSharedCase(toSharedPayload(activeCase));
-    return `${window.location.origin}/student?case=${encoded}`;
+  const [shareUrl, setShareUrl] = useState('');
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+
+  // Reset share URL when active case changes
+  useEffect(() => {
+    setShareUrl('');
+    setShareError(null);
   }, [activeCase]);
 
-  const shareUrlTooLong = shareUrl.length > 2000;
+  // Auto-generate share link when entering share mode
+  useEffect(() => {
+    if (mode !== 'share' || !activeCase || shareUrl || shareLoading) return;
+    let cancelled = false;
+    setShareLoading(true);
+    setShareError(null);
+    const payload = toSharedPayload(activeCase);
+    saveSharedCase(payload as unknown as Record<string, unknown>)
+      .then((id) => {
+        if (!cancelled) {
+          setShareUrl(`${window.location.origin}/student?id=${id}`);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          // Fallback to URL encoding
+          const encoded = encodeSharedCase(payload);
+          const fallbackUrl = `${window.location.origin}/student?case=${encoded}`;
+          if (fallbackUrl.length <= 2000) {
+            setShareUrl(fallbackUrl);
+          } else {
+            setShareError('Failed to create share link. Check your connection and try again.');
+          }
+        }
+      })
+      .finally(() => { if (!cancelled) setShareLoading(false); });
+    return () => { cancelled = true; };
+  }, [mode, activeCase, shareUrl, shareLoading]);
 
   function updateForm<K extends keyof GenerationForm>(key: K, value: GenerationForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -713,13 +745,19 @@ export default function TeacherStudio() {
                 {/* SHARE */}
                 {activeCase && mode === 'share' && (
                   <div className="case-view">
-                    {shareUrlTooLong && (
-                      <div className="error-banner">This case is too large for URL-based sharing. Edit the case to shorten it, or share via copy/paste instead.</div>
+                    {shareError && (
+                      <div className="error-banner">{shareError}</div>
                     )}
+                    {shareLoading && (
+                      <div style={{ textAlign: 'center', padding: '2rem' }}>
+                        <div className="spinner" />
+                        <p style={{ color: 'var(--ink-muted)', marginTop: 8 }}>Creating share link...</p>
+                      </div>
+                    )}
+                    {!shareLoading && !shareError && (
                     <div className="share-layout">
                       <div className="share-qr-card">
-                        {shareUrl && !shareUrlTooLong && <QRCodeSVG value={shareUrl} size={200} bgColor="transparent" fgColor="#f5f5f5" />}
-                        {shareUrlTooLong && <div style={{ width: 200, height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-muted)', fontSize: '0.85rem', textAlign: 'center' }}>Case too large for QR code</div>}
+                        {shareUrl && <QRCodeSVG value={shareUrl} size={200} bgColor="transparent" fgColor="#f5f5f5" />}
                         <p className="share-qr-label">Student QR Code</p>
                       </div>
                       <div className="share-details">
@@ -729,15 +767,16 @@ export default function TeacherStudio() {
                           <textarea className="field-textarea field-textarea-sm share-url" value={shareUrl} readOnly onClick={(e) => (e.target as HTMLTextAreaElement).select()} />
                           <div className="share-actions">
                             <CopyBtn text={shareUrl} label="Copy link" />
-                            {!shareUrlTooLong && <a className="btn btnSoft" href={shareUrl} target="_blank" rel="noopener noreferrer">Preview student view</a>}
+                            {shareUrl && <a className="btn btnSoft" href={shareUrl} target="_blank" rel="noopener noreferrer">Preview student view</a>}
                           </div>
                         </div>
                         <div className="share-info">
                           <h3>How This Works</h3>
-                          <p>Case data is compressed into the URL. No database needed for sharing. The link is self-contained.</p>
+                          <p>The case is stored securely and accessed via a short link. QR code works for classroom projection.</p>
                         </div>
                       </div>
                     </div>
+                    )}
                     <div className="export-bar">
                       <CopyBtn text={formatTeacherPlainText(activeCase)} label="Teacher copy" />
                       <CopyBtn text={formatStudentPlainText(activeCase)} label="Student copy" />
