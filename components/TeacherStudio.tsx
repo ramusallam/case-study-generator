@@ -10,7 +10,7 @@ import { saveSharedCase } from '@/lib/firebase';
 import type { Discipline, CaseTone } from '@/lib/disciplines';
 import type { ApiResult, CaseStudy, GenerationForm, SavedCase, Differential } from '@/lib/schema';
 
-type ViewMode = 'teacher' | 'editor' | 'present' | 'share';
+type ViewMode = 'teacher' | 'editor' | 'present' | 'reveal' | 'share';
 type AppView = 'studio' | 'library';
 
 const DISCIPLINE_KEYS = Object.keys(DISCIPLINES) as Discipline[];
@@ -321,9 +321,9 @@ export default function TeacherStudio() {
             {/* View mode tabs (studio only, when data exists) */}
             {appView === 'studio' && data && (
               <div className="mode-tabs">
-                {(['teacher', 'editor', 'present', 'share'] as ViewMode[]).map((m) => (
+                {(['teacher', 'editor', 'present', 'reveal', 'share'] as ViewMode[]).map((m) => (
                   <button key={m} className={`mode-tab ${mode === m ? 'mode-tab-active' : ''}`} onClick={() => setMode(m)}>
-                    {{ teacher: 'View', editor: 'Edit', present: 'Present', share: 'Share' }[m]}
+                    {{ teacher: 'View', editor: 'Edit', present: 'Present', reveal: 'Reveal', share: 'Share' }[m]}
                   </button>
                 ))}
               </div>
@@ -738,6 +738,124 @@ export default function TeacherStudio() {
                           <button key={stage.key} className={`stage-dot ${i <= revealIndex ? 'stage-dot-active' : ''}`} onClick={() => setRevealIndex(i)} aria-label={`Go to ${stage.label}`} title={stage.label} />
                         ))}
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* REVEAL — Teacher answer key */}
+                {activeCase && mode === 'reveal' && (
+                  <div className="case-view">
+                    <div className="reveal-answer-header">
+                      <div className="reveal-answer-badge">Answer Key</div>
+                      <h2 className="reveal-answer-title">{activeCase.title}</h2>
+                      <p className="reveal-answer-subtitle">For teacher use only — do not project to students</p>
+                    </div>
+
+                    {/* Correct Diagnosis */}
+                    <div className="reveal-diagnosis-card">
+                      <div className="reveal-diagnosis-label">Correct Diagnosis</div>
+                      <div className="reveal-diagnosis-name">{activeCase.correctDiagnosis}</div>
+                      <div className="reveal-diagnosis-rationale">{activeCase.teacherRationale}</div>
+                    </div>
+
+                    {/* Diagnostic clues — what points to the answer */}
+                    {(activeCase.diagnosticClues ?? []).length > 0 && (
+                      <div className="reveal-section">
+                        <h3 className="reveal-section-title">Evidence Pointing to Diagnosis</h3>
+                        <ul className="reveal-clue-list">
+                          {activeCase.diagnosticClues.map((clue, i) => (
+                            <li key={i} className="reveal-clue-item reveal-clue-confirm">{clue}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Plausible Differentials */}
+                    <div className="reveal-section">
+                      <h3 className="reveal-section-title">Plausible Differentials</h3>
+                      <p className="reveal-section-desc">These are the diagnoses students will likely consider. Each one has genuine overlap with the case — here is the reasoning for why each fits and ultimately falls short.</p>
+                      <div className="reveal-diff-stack">
+                        {(activeCase.differentialDiagnoses ?? []).map((d, i) => (
+                          <div className="reveal-diff-card" key={i}>
+                            <div className="reveal-diff-name">{d.diagnosis}</div>
+                            <div className="reveal-diff-row">
+                              <div className="reveal-diff-col">
+                                <span className="reveal-diff-tag reveal-diff-tag-fits">Why it fits</span>
+                                <p>{d.whyItFits}</p>
+                              </div>
+                              <div className="reveal-diff-col">
+                                <span className="reveal-diff-tag reveal-diff-tag-short">Why it falls short</span>
+                                <p>{d.whyItFallsShort}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* What keeps the differential open */}
+                    {(activeCase.differentialClues ?? []).length > 0 && (
+                      <div className="reveal-section">
+                        <h3 className="reveal-section-title">What Keeps the Differential Open</h3>
+                        <ul className="reveal-clue-list">
+                          {activeCase.differentialClues.map((clue, i) => (
+                            <li key={i} className="reveal-clue-item reveal-clue-ambig">{clue}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Connection to Content — the whole point */}
+                    <div className="reveal-content-connection">
+                      <h3 className="reveal-section-title">Connection to Course Content</h3>
+                      <div className="reveal-tunnel-card">
+                        <div className="reveal-tunnel-label">Content Tunnel</div>
+                        <p className="reveal-tunnel-text">{activeCase.teacherNotes.contentTunnel}</p>
+                      </div>
+
+                      {(activeCase.teacherNotes.coreConcepts ?? []).length > 0 && (
+                        <div className="reveal-concepts">
+                          <div className="reveal-tunnel-label">Core Concepts Revealed</div>
+                          <div className="reveal-concept-tags">
+                            {activeCase.teacherNotes.coreConcepts.map((c, i) => (
+                              <span className="reveal-concept-tag" key={i}>{c}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {(activeCase.teacherNotes.misconceptionsToWatch ?? []).length > 0 && (
+                        <div className="reveal-misconceptions">
+                          <div className="reveal-tunnel-label">Misconceptions to Watch</div>
+                          <ul className="reveal-misc-list">
+                            {activeCase.teacherNotes.misconceptionsToWatch.map((m, i) => (
+                              <li key={i}>{m}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      <div className="reveal-why-works">
+                        <div className="reveal-tunnel-label">Why This Case Works</div>
+                        <p>{activeCase.teacherNotes.whyThisCaseWorks}</p>
+                      </div>
+                    </div>
+
+                    {(activeCase.suggestedNextTests ?? []).length > 0 && (
+                      <div className="reveal-section">
+                        <h3 className="reveal-section-title">If You Want to Extend the Case</h3>
+                        <ul className="reveal-clue-list">
+                          {activeCase.suggestedNextTests.map((t, i) => (
+                            <li key={i} className="reveal-clue-item">{t}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <div className="export-bar">
+                      <CopyBtn text={formatTeacherPlainText(activeCase)} label="Copy answer key" />
+                      <CopyBtn text={formatTeacherMarkdown(activeCase)} label="Markdown" />
+                      <button className="btn btnSoft" onClick={() => window.print()}>Print</button>
                     </div>
                   </div>
                 )}

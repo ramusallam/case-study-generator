@@ -1003,6 +1003,160 @@ input[type="range"]::-webkit-slider-thumb {
   .library-search { flex: 1; min-width: 0; }
 }
 
+/* ---- Reveal / Answer Key Mode ---- */
+
+.reveal-answer-header {
+  text-align: center;
+  padding: 24px 0 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+.reveal-answer-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--amber);
+  background: var(--amber-soft);
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  margin-bottom: 12px;
+}
+.reveal-answer-title { font-size: 1.5rem; font-weight: 700; color: var(--ink); }
+.reveal-answer-subtitle { color: var(--ink-muted); font-size: 0.85rem; margin-top: 6px; }
+
+.reveal-diagnosis-card {
+  background: var(--accent-soft);
+  border: 1px solid rgba(99,102,241,0.25);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  margin-bottom: 24px;
+  text-align: center;
+}
+.reveal-diagnosis-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-text);
+  margin-bottom: 8px;
+}
+.reveal-diagnosis-name {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+.reveal-diagnosis-rationale {
+  color: var(--ink-secondary);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.reveal-section { margin-bottom: 24px; }
+.reveal-section-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-light);
+}
+.reveal-section-desc {
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.reveal-clue-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.reveal-clue-item {
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  border-left: 3px solid var(--border);
+  font-size: 0.92rem;
+  color: var(--ink-secondary);
+}
+.reveal-clue-confirm { border-left-color: var(--green); }
+.reveal-clue-ambig { border-left-color: var(--amber); }
+
+.reveal-diff-stack { display: flex; flex-direction: column; gap: 16px; }
+.reveal-diff-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+}
+.reveal-diff-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+.reveal-diff-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.reveal-diff-col p { color: var(--ink-secondary); font-size: 0.88rem; line-height: 1.55; margin: 6px 0 0; }
+.reveal-diff-tag {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+.reveal-diff-tag-fits { color: var(--green); background: var(--green-soft); }
+.reveal-diff-tag-short { color: var(--red); background: var(--red-soft); }
+
+.reveal-content-connection {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+.reveal-tunnel-card {
+  background: var(--surface-raised);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.reveal-tunnel-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-text);
+  margin-bottom: 8px;
+}
+.reveal-tunnel-text {
+  color: var(--ink);
+  font-size: 0.95rem;
+  line-height: 1.65;
+  margin: 0;
+}
+.reveal-concepts { margin-bottom: 20px; }
+.reveal-concept-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.reveal-concept-tag {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.reveal-misconceptions { margin-bottom: 20px; }
+.reveal-misc-list { color: var(--ink-secondary); font-size: 0.9rem; }
+.reveal-misc-list li + li { margin-top: 6px; }
+.reveal-why-works p { color: var(--ink-secondary); font-size: 0.9rem; line-height: 1.6; margin: 4px 0 0; }
+
+@media (max-width: 768px) {
+  .reveal-diff-row { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 640px) {
   .app-header-inner { flex-direction: column; align-items: flex-start; gap: 8px; }
   .app-body { padding: 10px 12px 24px; gap: 14px; }

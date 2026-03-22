@@ -21,14 +21,18 @@ function StudentView() {
       const id = params.get('id');
       if (id) {
         try {
-          const data = await getSharedCase(id);
+          // Add a timeout so the page doesn't spin forever if Firebase is unreachable
+          const data = await Promise.race([
+            getSharedCase(id),
+            new Promise<null>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
+          ]);
           if (!cancelled && data) {
             setStudentCase(data as unknown as SharedStudentCase);
             setLoading(false);
             return;
           }
         } catch {
-          // Fall through to error
+          // Fall through to LZ-string fallback or error
         }
       }
 
