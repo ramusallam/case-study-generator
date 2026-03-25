@@ -98,7 +98,8 @@ export async function POST(request: Request) {
   const timeout = setTimeout(() => controller.abort(), 55000);
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    // Use streamGenerateContent to keep Vercel connection alive
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
     const res = await fetch(url, {
       method: 'POST',
@@ -136,36 +137,100 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'The AI service encountered an error. Try again in a moment.' }, { status: 502 });
     }
 
-    const data = await res.json();
+    // Stream the Gemini SSE response back to the client as plain text chunks
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+    const geminiBody = res.body;
 
-    const candidate = data.candidates?.[0];
-    if (!candidate?.content?.parts?.[0]?.text) {
-      console.error('[case-generator] No text in Gemini response:', JSON.stringify(data).slice(0, 500));
+    if (!geminiBody) {
       return NextResponse.json({ error: 'The AI returned an empty response. Try again.' }, { status: 502 });
     }
 
-    const outputText = candidate.content.parts[0].text;
+    const stream = new ReadableStream({
+      async start(streamController) {
+        const reader = geminiBody.getReader();
+        let accumulated = '';
 
-    let jsonData;
-    try {
-      jsonData = JSON.parse(outputText);
-    } catch {
-      console.error('[case-generator] Invalid JSON from model:', outputText.slice(0, 300));
-      return NextResponse.json({ error: 'The AI returned malformed data. Try again.' }, { status: 502 });
-    }
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-    let parsed;
-    try {
-      parsed = apiResultSchema.parse(jsonData);
-    } catch (err) {
-      const zodMsg = err instanceof z.ZodError
-        ? err.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('; ')
-        : 'unknown';
-      console.error('[case-generator] Schema validation failed:', zodMsg);
-      return NextResponse.json({ error: 'The AI response didn\'t match the expected format. Try again.' }, { status: 502 });
-    }
+            const chunk = decoder.decode(value, { stream: true });
+            // Parse SSE lines from Gemini
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              const jsonStr = line.slice(6).trim();
+              if (!jsonStr) continue;
 
-    return NextResponse.json(parsed);
+              try {
+                const parsed = JSON.parse(jsonStr);
+                const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) {
+                  accumulated += text;
+                  // Send a keep-alive chunk to the client
+                  streamController.enqueue(encoder.encode(`data: ${JSON.stringify({ partial: true, chunk: text })}\n\n`));
+                }
+              } catch {
+                // Skip malformed SSE chunks
+              }
+            }
+          }
+
+          // All chunks received — validate the full response
+          if (!accumulated) {
+            streamController.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'The AI returned an empty response. Try again.' })}\n\n`));
+            streamController.close();
+            return;
+          }
+
+          let jsonData;
+          try {
+            jsonData = JSON.parse(accumulated);
+          } catch {
+            console.error('[case-generator] Invalid JSON from model:', accumulated.slice(0, 300));
+            streamController.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'The AI returned malformed data. Try again.' })}\n\n`));
+            streamController.close();
+            return;
+          }
+
+          let validated;
+          try {
+            validated = apiResultSchema.parse(jsonData);
+          } catch (err) {
+            const zodMsg = err instanceof z.ZodError
+              ? err.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('; ')
+              : 'unknown';
+            console.error('[case-generator] Schema validation failed:', zodMsg);
+            streamController.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "The AI response didn't match the expected format. Try again." })}\n\n`));
+            streamController.close();
+            return;
+          }
+
+          // Send the final validated result
+          streamController.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, ...validated })}\n\n`));
+          streamController.close();
+        } catch (error) {
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            streamController.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Generation timed out. Try generating fewer cases or simplifying the request.' })}\n\n`));
+          } else {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            console.error('[case-generator] Stream error:', message);
+            streamController.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Something went wrong. Try again.' })}\n\n`));
+          }
+          streamController.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    });
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
       return NextResponse.json({ error: 'Generation timed out. Try generating fewer cases or simplifying the request.' }, { status: 504 });

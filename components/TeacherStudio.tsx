@@ -194,9 +194,54 @@ export default function TeacherStudio() {
     try {
       const payload = { ...form, ...overrides };
       const res = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Generation failed.');
-      setData(json);
+
+      // Handle non-streaming error responses (4xx/5xx before stream starts)
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Generation failed.');
+        setData(json);
+      } else {
+        // Read SSE stream
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error('No response stream.');
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          // Process complete SSE messages
+          const messages = buffer.split('\n\n');
+          buffer = messages.pop() || '';
+
+          for (const msg of messages) {
+            if (!msg.startsWith('data: ')) continue;
+            const jsonStr = msg.slice(6).trim();
+            if (!jsonStr) continue;
+            const parsed = JSON.parse(jsonStr);
+            if (parsed.error) throw new Error(parsed.error);
+            if (parsed.done && parsed.cases) {
+              setData({ cases: parsed.cases });
+            }
+          }
+        }
+
+        // Process any remaining buffer
+        if (buffer.startsWith('data: ')) {
+          const jsonStr = buffer.slice(6).trim();
+          if (jsonStr) {
+            const parsed = JSON.parse(jsonStr);
+            if (parsed.error) throw new Error(parsed.error);
+            if (parsed.done && parsed.cases) {
+              setData({ cases: parsed.cases });
+            }
+          }
+        }
+      }
+
       setActiveIndex(0);
       setMode('teacher');
       setAppView('studio');
