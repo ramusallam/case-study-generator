@@ -12,7 +12,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <meta name="theme-color" content="#6366f1" />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <p className="made-by">Case Study Generator by <a href="https://cyclesoflearning.com" target="_blank" rel="noopener">Ramsey Musallam</a></p>
+      </body>
     </html>
   );
 }
